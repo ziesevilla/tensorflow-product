@@ -1,38 +1,161 @@
-.App {
-  text-align: center;
+/* --- CSS VARIABLES FOR CLEAN MINIMALIST THEME --- */
+:root {
+  /* Theme Colors */
+  --color-primary: #1e3a8a; /* Deep Navy Blue */
+  --color-bg-main: #ffffff; /* Bright White */
+  --color-bg-card: #f9fafb; /* Off-White for panels/cards */
+  --color-text: #1f2937; /* Dark Gray/Black for main text */
+  --color-dark-gray: #4b5563; /* Gray for secondary text/borders */
+
+  /* Status Colors */
+  --color-success: #059669; /* Muted Green */
+  --color-danger: #ef4444; /* Clear Red */
+  --color-light-bg-success: #d1fae5; /* Very light green background */
+  --color-light-bg-danger: #fee2e2; /* Very light red background */
 }
 
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
-}
-
-.App-header {
-  background-color: #282c34;
+/* --- GLOBAL STYLES (App Container) --- */
+.inventory-container {
+  padding: 40px;
+  max-width: 1400px;
+  margin: 0 auto;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: var(--color-bg-main);
   min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
+  color: var(--color-text);
+}
+
+.header-text {
+    color: var(--color-text);
+    margin-bottom: 5px;
+}
+
+.sub-header-text {
+    color: var(--color-dark-gray);
+    margin-bottom: 20px;
+}
+
+/* --- MODEL CONTROLS (Card/Panel) --- */
+.control-panel {
+  background: var(--color-bg-card);
+  padding: 24px;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); /* Subtle shadow */
+  margin-bottom: 30px;
+  border: 1px solid var(--color-dark-gray); /* Thin border */
+}
+
+.control-panel h3 {
+  color: var(--color-text);
+  border-bottom: 1px solid var(--color-dark-gray);
+  padding-bottom: 10px;
+  margin-bottom: 20px;
+}
+
+.control-buttons-group {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+}
+
+.control-buttons-group button {
+  padding: 12px 25px;
   color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s ease-in-out;
+  min-width: 250px;
 }
 
-.App-link {
-  color: #61dafb;
+.btn-train {
+    background-color: var(--color-danger); /* Use red color for 'Train' since it's the initial action */
 }
 
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.btn-train:disabled {
+    cursor: not-allowed;
+    background-color: var(--color-dark-gray);
+    opacity: 0.6;
+}
+
+.btn-trained {
+    background-color: var(--color-success); /* Green once trained */
+}
+
+.btn-predict {
+    background-color: var(--color-primary);
+}
+
+.btn-predict:disabled {
+    cursor: not-allowed;
+    background-color: var(--color-dark-gray);
+    opacity: 0.6;
+}
+
+
+/* --- DATA TABLE --- */
+.dashboard-table-wrapper {
+    overflow-y: scroll;
+    max-height: 60vh;
+    background: var(--color-bg-card);
+    border-radius: 8px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    border: 1px solid var(--color-dark-gray);
+}
+
+.inventory-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.inventory-table thead tr {
+    background: var(--color-primary);
+}
+
+.inventory-table th {
+    padding: 12px;
+    text-align: left;
+    color: var(--color-bg-card);
+    font-size: 15px;
+    cursor: pointer;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    user-select: none;
+    background-color: var(--color-primary);
+}
+
+.inventory-table td {
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 1px solid #e5e7eb; /* Very light subtle dividers */
+    color: var(--color-text);
+    background-color: var(--color-bg-main);
+    transition: background-color 0.2s;
+}
+
+.inventory-table tbody tr:hover td {
+    background-color: #f3f4f6; /* Subtle light gray hover */
+}
+
+/* Specific styling for the SKU column */
+.sku-cell {
+    font-weight: 700;
+    color: var(--color-primary);
+}
+
+/* --- REORDER SUGGESTION STYLES --- */
+.suggestion-cell {
+    font-weight: 600;
+}
+
+.reorder-now {
+    background-color: var(--color-light-bg-danger) !important;
+    color: var(--color-danger) !important;
+}
+
+.stock-ok {
+    background-color: var(--color-light-bg-success) !important;
+    color: var(--color-success) !important;
 }
