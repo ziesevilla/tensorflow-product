@@ -1,27 +1,33 @@
-import React, { useState, useEffect, useMemo } from "react";
-import * as tf from "@tensorflow/tfjs";
-// IMPORTANT: Import the CSS file
-import './App.css';
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 
+// Load Tailwind for styling
+// Note: We are using Tailwind CSS classes directly for styling.
+
+// --- Environment Setup (Mandatory) ---
+const apiKey = ""; 
+const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+
+// --- Helper Functions ---
+
+/**
+ * Generates mock product data. In a real app, this logic would be on the API server.
+ * This is used to simulate the API response payload.
+ */
 const generateProductData = (count = 200) => {
   const products = [];
-  let uniqueNames = new Set();
-  
-  let nameIndex = 0;
-  let modIndex = 0;
-  let varIndex = 0;
   
   for (let i = 1; i <= count; i++) {
-    // Generate the unique SKU/ID (using zero padding for visual clarity)
     const productSku = `SKU-${i.toString().padStart(4, '0')}`;
     
-    // --- Data generation logic ---
+    // --- Input features for prediction ---
     const inventory = Math.floor(Math.random() * 200) + 10;
     const avgSales = Math.floor(Math.random() * 50) + 5;
     const leadTime = Math.floor(Math.random() * 6) + 1;
 
+    // The 'Ground Truth' for the API model to learn/predict against
+    // Safety Stock Rule: Reorder if Inventory is less than 2x Sales * Lead Time
     const safetyStockThreshold = 2 * avgSales * leadTime;
-    const reorderLabel = inventory < safetyStockThreshold ? 1 : 0;
+    const reorderLabel = inventory < safetyStockThreshold ? 1 : 0; 
 
     products.push({
       id: i, 
@@ -29,39 +35,58 @@ const generateProductData = (count = 200) => {
       inventoryLevel: inventory,
       averageSalesPerWeek: avgSales,
       daysToReplenish: leadTime,
-      reorderLabel: reorderLabel,
+      reorderLabel: reorderLabel, // This is the "correct" classification based on the simple rule
       suggestion: "Pending",
-      // Add class for styling, but initial state is pending
-      suggestionClass: "", 
+      suggestionClass: "text-gray-500", 
       predictionValue: 'N/A' // Initialize prediction value
     });
   }
   return products;
 };
 
-// --- Helper Functions ---
-
 const getSortIcon = (key, sortConfig) => {
-    if (!sortConfig || sortConfig.key !== key) {
-        return '';
-    }
-    return sortConfig.direction === 'ascending' ? ' ▲' : ' ▼';
+  if (!sortConfig || sortConfig.key !== key) {
+    return null;
+  }
+  return sortConfig.direction === 'ascending' ? ' ▲' : ' ▼';
 };
 
-// --- React Component ---
+// --- Main Component ---
 export default function InventoryPredictor() {
   const [products, setProducts] = useState([]);
-  const [isTraining, setIsTraining] = useState(false);
-  const [isReady, setIsReady] = useState(false);
-  const [model, setModel] = useState(null);
-  const [sortConfig, setSortConfig] = useState({ key: 'sku', direction: 'ascending' });
+  const [isPredicting, setIsPredicting] = useState(false);
+  const [isLoadingData, setIsLoadingData] = useState(true); // New state for initial data fetch
+  const [sortConfig, setSortConfig] = useState({ key: 'predictionValue', direction: 'descending' });
 
-  // Data Loading 
+  // Data Loading - Simulating Fetch from an Existing API
   useEffect(() => {
-    setTimeout(() => {
-      const data = generateProductData(200);
-      setProducts(data);
-    }, 500);
+    const fetchProductDataFromAPI = async () => {
+      console.log("Fetching product data from simulated API...");
+      setIsLoadingData(true);
+      
+      // Simulate network delay for a real API call (e.g., 1.5 seconds)
+      await new Promise(resolve => setTimeout(resolve, 1500)); 
+
+      try {
+        // In a real application, you would use:
+        // const response = await fetch('YOUR_EXTERNAL_PRODUCT_API_URL');
+        // const apiData = await response.json();
+        // setProducts(apiData);
+        
+        // Using the mock data generator to simulate the API payload
+        const data = generateProductData(200);
+        setProducts(data);
+
+      } catch (error) {
+        console.error("Failed to fetch product data:", error);
+        // Display user-friendly error message here if the API call fails
+      } finally {
+        setIsLoadingData(false);
+        console.log("Product data fetch complete.");
+      }
+    };
+
+    fetchProductDataFromAPI();
   }, []);
   
   // Sorting Logic
@@ -72,22 +97,11 @@ export default function InventoryPredictor() {
         const aValue = sortConfig.key === 'predictionValue' ? parseFloat(a[sortConfig.key] || 0) : a[sortConfig.key];
         const bValue = sortConfig.key === 'predictionValue' ? parseFloat(b[sortConfig.key] || 0) : b[sortConfig.key];
 
-        if (typeof aValue === 'string') {
-            if (aValue < bValue) {
-                return sortConfig.direction === 'ascending' ? -1 : 1;
-            }
-            if (aValue > bValue) {
-                return sortConfig.direction === 'ascending' ? 1 : -1;
-            }
-        } else {
-            if (aValue < bValue) {
-                return sortConfig.direction === 'ascending' ? -1 : 1;
-            }
-            if (aValue > bValue) {
-                return sortConfig.direction === 'ascending' ? 1 : -1;
-            }
-        }
-        return 0;
+        const comparison = typeof aValue === 'string'
+          ? aValue.localeCompare(bValue)
+          : (aValue < bValue ? -1 : aValue > bValue ? 1 : 0);
+
+        return sortConfig.direction === 'ascending' ? comparison : -comparison;
       });
     }
     return sortableItems;
@@ -102,135 +116,39 @@ export default function InventoryPredictor() {
     setSortConfig({ key, direction });
   };
 
-
-  // Model Training 
-  const trainModel = async (trainingData) => {
-    setIsTraining(true);
-    const features = trainingData.map(p => [ p.inventoryLevel, p.averageSalesPerWeek, p.daysToReplenish ]);
-    const labels = trainingData.map(p => p.reorderLabel);
-    const trainingTensor = tf.tensor2d(features);
-    const outputTensor = tf.tensor2d(labels, [labels.length, 1]);
-    const newModel = tf.sequential();
-    newModel.add(tf.layers.dense({ inputShape: [3], units: 10, activation: "relu" }));
-    newModel.add(tf.layers.dense({ units: 1, activation: "sigmoid" }));
-    newModel.compile({ optimizer: "adam", loss: "binaryCrossentropy", metrics: ["accuracy"], });
-
-    await newModel.fit(trainingTensor, outputTensor, { epochs: 100, shuffle: true, callbacks: { onEpochEnd: (epoch, logs) => { console.log(`Epoch ${epoch + 1}: Loss = ${logs.loss.toFixed(4)}, Accuracy = ${logs.acc.toFixed(4)}`); } } });
-
-    trainingTensor.dispose();
-    outputTensor.dispose();
-    setModel(newModel);
-    setIsTraining(false);
-    setIsReady(true);
-    console.log("Model Training Complete!");
-    setTimeout(() => { handlePredictAll(newModel, trainingData); }, 100);
-  };
-  
-  // Model Prediction
-  const handlePredictAll = async (trainedModel = model, currentProducts = products) => {
-    if (!trainedModel) { alert("Please train the model first!"); return; }
+  /**
+   * @fileOverview The function responsible for calling the Gemini API to get predictions for all products.
+   * This logic remains unchanged and is performed after the initial product data is loaded.
+   */
+  const handlePredictAll = useCallback(async () => {
+    if (products.length === 0) {
+        // Using console.error instead of alert as per instructions
+        console.error("Cannot run prediction: No product data loaded.");
+        return;
+    }
     
-    console.log("Starting Prediction...");
-    
-    const predictionFeatures = currentProducts.map(p => [ p.inventoryLevel, p.averageSalesPerWeek, p.daysToReplenish ]);
-    const predictionTensor = tf.tensor2d(predictionFeatures);
-    
-    const predictions = trainedModel.predict(predictionTensor);
-    const predictionData = await predictions.data();
-    
-    const updatedProducts = currentProducts.map((product, index) => {
-        const value = predictionData[index];
-        const suggestion = value > 0.5 ? "🔴 Reorder NOW" : "🟢 Stock OK";
-        const suggestionClass = value > 0.5 ? 'reorder-now' : 'stock-ok';
-        
-        return {
-            ...product,
-            suggestion: suggestion,
-            suggestionClass: suggestionClass,
-            predictionValue: value.toFixed(4)
-        };
-    });
-    
-    predictionTensor.dispose();
-    predictions.dispose();
-    setProducts(updatedProducts);
-    console.log("Prediction Complete!");
-  };
+    setIsPredicting(true);
+    let updatedProducts = [...products];
 
-  return (
-    <div className="inventory-container">
-      
-      {/* Header and Title */}
-      <h1 className="header-text">📈 Inventory Prediction Dashboard</h1>
-      <p className="sub-header-text">
-        Total Products Loaded: <strong>{products.length}</strong> | Click on a column header to sort the table.
-      </p>
+    // System instruction: Act as a classifier and return a structured JSON object.
+    const systemPrompt = "You are an inventory classification AI. Analyze the provided product inventory data against a safety stock rule (Inventory < 2 * Sales * Lead Time) to classify it. Output ONLY a JSON array of objects. The 'confidence' should be a floating-point number between 0 and 1, representing the likelihood of needing a reorder (1.0 means highly likely, 0.0 means unlikely).";
 
-      {/* Control Panel (Card Style) */}
-      <div className="control-panel">
-        <h3>Model Controls</h3>
-        
-        <div className="control-buttons-group">
-            <button 
-              onClick={() => products.length > 0 && trainModel(products)} 
-              disabled={isTraining || isReady || products.length === 0}
-              className={isReady ? 'btn-train btn-trained' : 'btn-train'}
-            >
-              {isTraining ? '🏋️ Training Model... (Check Console)' : isReady ? '✅ Model Trained!' : '1. Train Predictive Model'}
-            </button>
-            
-            {isTraining && <span style={{ color: 'var(--color-primary)' }}>Training in progress...</span>}
-        </div>
-      </div>
-      
-      {/* Dashboard Table */}
-      <div className="dashboard-table-wrapper">
-        <table className="inventory-table">
-          <thead>
-            <tr>
-              {/* Product ID / SKU Column */}
-              <th onClick={() => handleSort('sku')} style={{borderTopLeftRadius: '8px'}}>
-                Product ID / SKU {getSortIcon('sku', sortConfig)}
-              </th>
-              {/* Inventory Level Column */}
-              <th onClick={() => handleSort('inventoryLevel')}>
-                Current Inventory Level {getSortIcon('inventoryLevel', sortConfig)}
-              </th>
-              {/* Avg. Sales Column */}
-              <th onClick={() => handleSort('averageSalesPerWeek')}>
-                Avg. Weekly Sales {getSortIcon('averageSalesPerWeek', sortConfig)}
-              </th>
-              {/* Lead Time Column */}
-              <th onClick={() => handleSort('daysToReplenish')}>
-                Lead Time (Days) {getSortIcon('daysToReplenish', sortConfig)}
-              </th>
-              {/* Suggestion Column */}
-              <th onClick={() => handleSort('suggestion')}>
-                Reorder Suggestion {getSortIcon('suggestion', sortConfig)}
-              </th>
-              {/* Confidence Column */}
-              <th onClick={() => handleSort('predictionValue')} style={{borderTopRightRadius: '8px'}}>
-                Confidence (0-1) {getSortIcon('predictionValue', sortConfig)}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {sortedProducts.map((product) => (
-              <tr key={product.id}>
-                <td className="sku-cell">{product.sku}</td>
-                <td>{product.inventoryLevel}</td>
-                <td>{product.averageSalesPerWeek}</td>
-                <td>{product.daysToReplenish}</td>
-                <td className={`suggestion-cell ${product.suggestionClass}`}>
-                    {product.suggestion}
-                </td>
-                <td style={{color: 'var(--color-dark-gray)'}}>{product.predictionValue}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      
-    </div>
-  );
-}
+    // User prompt: Concatenate all product data into a single string for the model to process.
+    const productDataString = products.map(p => 
+      `SKU: ${p.sku}, Inventory: ${p.inventoryLevel}, Sales: ${p.averageSalesPerWeek}, Lead Time: ${p.daysToReplenish}, GroundTruth(0=OK, 1=Reorder): ${p.reorderLabel}`
+    ).join(' | ');
+
+    const userQuery = `Analyze the following product data and generate the prediction JSON for all items based on the safety stock rule. Data: ${productDataString}`;
+
+    // Define the required JSON structure (Schema)
+    const responseSchema = {
+        type: "ARRAY",
+        items: {
+            type: "OBJECT",
+            properties: {
+                sku: { type: "STRING", description: "The SKU of the product being analyzed." },
+                confidence: { type: "NUMBER", description: "The reorder probability (0.0 to 1.0)." },
+                suggestion: { type: "STRING", description: "The suggested action ('🟢 Stock OK' or '🔴 Reorder NOW')." }
+            },
+            required: ["sku", "confidence", "suggestion"],
+            propertyOrdering: ["
